@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Still Hiring Results</title>
+</head>
+
+<body>
+  <main id="main">
+    <h1><span id="count"></span> Job Board Links</h1>
+    <ul id="links"></ul>
+  </main>
+  <script src="./companies.js"></script>
+  <script>
+
+    // create a simple html list
+    let list = document.getElementById('links');
+    let count = document.getElementById('count');
+    let li;
+    let link;
+
+    count.appendChild(document.createTextNode(companies.length))
+
+    for (let url of companies) {
+      li = document.createElement('li');
+      link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.appendChild(document.createTextNode(url))
+      li.appendChild(link);
+      list.appendChild(li);
+    }
+  </script>
+</body>
+
+</html>
