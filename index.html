@@ -21,13 +21,18 @@
     let count = document.getElementById('count');
     let li;
     let link;
+    let check;
 
     count.appendChild(document.createTextNode(companies.length))
 
     for (let url of companies) {
       li = document.createElement('li');
       link = document.createElement('a');
+      check = document.createElement('input')
+      check.setAttribute('type', 'checkbox')
+      li.appendChild(check)
       link.setAttribute('href', url);
+      link.setAttribute('target', "_blank");
       link.appendChild(document.createTextNode(url))
       li.appendChild(link);
       list.appendChild(li);

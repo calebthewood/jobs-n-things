@@ -1,17 +1,16 @@
-const fs = require('fs');
+const { exec } = require('child_process');
+let chrome = require('selenium-webdriver/chrome');
+let { Builder, By, until } = require('selenium-webdriver');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const {
-  extractNumber,
   scroll,
+  extractNumber,
   parseCompanyName,
-  readToArray,
   writeTextToFile,
   writeArrayToFile
-} = require('./utils')
+} = require('./utils');
 
-let chrome = require('selenium-webdriver/chrome');
-let { Builder, By, until } = require('selenium-webdriver');
 
 /* ***** Notes *****
   1. Program both cheerio and selenium
@@ -24,10 +23,7 @@ let { Builder, By, until } = require('selenium-webdriver');
         then saves the data to a js file
     b. make the scraping functions custom to each site, but
         output always the same
-
 */
-
-
 
 /* ############# Application Sources ############# */
 
@@ -86,76 +82,70 @@ const jobBoards = [
 
 /* ############# Scraping Functions ############# */
 
-
 /** Uses Selenium headless browser to scrape company name data from airtable. */
-async function scrapeStillHiring() {
+async function scrapeStillHiring(driver) {
   let companyNames = new Set();
   let elements;
 
-  // .headless() to hide browser
-  let driver = new Builder()
-    .forBrowser('chrome')
-    .setChromeOptions(new chrome.Options()
-      .windowSize({ width: 900, height: 900 }))
-    .build();
-
   try {
-    // Get page, wait 5 seconds for data to load
     await driver.get(STILL_HIRING);
     await driver.wait(until.titleIs("Airtable - StillHiring.today - WHO THE FRIGGIN' FRIG IS HIRING RN?!"), 5000);
+    console.log("Airtable - StillHiring.today - WHO THE FRIGGIN' FRIG IS HIRING RN?!");
 
-    let selectionCount = await driver.findElement(By.className('selectionCount')).getText();
-    // let recordCount = extractNumber(selectionCount) || 0; //1400 is the row count as of 4/21
-
-    // Adds currently viewed company names, scrolls down & waits 1.5 sec for more to load, repeat
-    while (companyNames.size <= 1400) {
-
-      await driver.manage().logs().get('browser')
-        .forEach(log => console.log(`[${log.level}] ${log.message}`));
-
+    // recordCount method below generally fails, see break condition below
+    // let selectionCount = await driver.findElement(By.className('selectionCount')).getText();
+    // let recordCount = extractNumber(selectionCount) || 1000; // 1400 is the row count as of 4/21
+    let running = true;
+    while (running) {
+      // Airtable lazy loads so we get all visible company names, then scroll & rpt.
       driver.wait(until.elementsLocated(By.css('[data-columnid="fldekrsjTIcqFNlgA"]')), 2000);
       elements = await driver.findElements(By.css('[data-columnid="fldekrsjTIcqFNlgA"] > div > div'));
 
       for (let element of elements) {
         const name = await element.getText() || "";
         companyNames.add(name);
+        console.log('Company: ', name);
+        running = name === 'Pulsenics Inc' ? false : true
       }
-
+      console.log('driver scroll y ', 850);
       await driver.executeScript(scroll);
-      await driver.sleep(1373);
+      console.log('driver sleep: ', 300);
+      await driver.sleep(300);
+      console.log('companyNames Size: ', companyNames.size);
     }
 
     // use companyNames set to dedupe, then store for main()
+    console.log('push cached nams to SEARCH_LIST');
     for (let name of companyNames) {
-      let parsedName = parseCompanyName(name)
+      let parsedName = parseCompanyName(name);
       SEARCH_LIST.push(parsedName);
     }
     // save to file for posterity :)
+    console.log('SEARCH_LIST saved to ./results/Still-Hiring-4-21-23.txt');
     writeTextToFile(SEARCH_LIST, 'results/Still-Hiring-4-21-23.txt');
 
   } catch (e) {
     console.error(e);
-  } finally {
-    driver.quit();
   }
 }
 
 async function main() {
-  // try {
-  //   await scrapeStillHiring();
-  // } catch (e) {
-  //   console.error(e);
-  // }
-  let SEARCH_LIST = readToArray('results/Still-Hiring-4-21-23.txt');
-  console.log(SEARCH_LIST);
-
-  // Initieate Selenium Chrome driver
+  // Initiate Selenium Chrome driver
+  // .headless() to hide browser
   let driver = new Builder()
     .forBrowser('chrome')
     .setChromeOptions(new chrome.Options()
-      .headless()
-      .windowSize({ width: 640, height: 480 }))
+      .windowSize({ width: 800, height: 900 }))
     .build();
+
+  try {
+    await scrapeStillHiring(driver);
+  } catch (e) {
+    console.error(e);
+  }
+
+  // Use when reading data from file
+  // let SEARCH_LIST = readToArray('results/Still-Hiring-4-21-23.txt');
 
   for (let company of SEARCH_LIST) {
     let count = 0;
@@ -163,22 +153,17 @@ async function main() {
       const url = jobBoard.url(company);
 
       try {
+        console.log('checking: ', url);
         await driver.get(url);
-        await driver.show();
-        await driver.manage().logs().get('browser')
-          .forEach(log => console.log(`[${log.level}] ${log.message}`));
         await driver.sleep(200);
-
         // make this better
         const roleMatches = await driver.findElements(By.xpath(`//*[contains(text(), 'Engineer') or contains(text(), 'Developer')]`));
-        // Set break conditions for cases to ignore...
 
         if (roleMatches.length) {
           FOUND_LIST.push(url);
           count++;
           console.log(`Success - ${company}: ${url} `);
         }
-
       } catch {
         console.error(`### Error - ${company}: ${url} ###`);
       }
@@ -190,20 +175,34 @@ async function main() {
     }
   }
   /* ****** Save Data Locally ****** */
+  console.log('** Writing data to files **');
   writeArrayToFile(FOUND_LIST, 'companies.js'); // for index.html
+  console.log('FOUND_LIST saved to ./companies.js');
   writeTextToFile(FOUND_LIST, 'results/hiring.txt');
+  console.log('FOUND_LIST saved to ./results/hiring.txt');
   writeTextToFile(NOT_FOUND_LIST, 'results/unresolved.txt');
+  console.log('SEARCH_LIST saved to ./results/unresolved.txt');
 
   if (FOUND_LIST.length && SEARCH_LIST.length) {
     console.log('Mission Accomplished.');
+
   } else {
     console.log('Completed with errors.');
+  }
+
+  driver.quit();
+
+  try {
+    // only works for macos
+    exec(`open "index.html"`)
+  } catch {
+    console.error("Failed to open index.html")
   }
 }
 
 
-// main();
-scrapeStillHiring()
+main();
+// scrapeStillHiring();
 
 /** Currently blocked by Fortune Paywall */
 async function scrapeFortuneList() {
@@ -222,7 +221,6 @@ async function scrapeFortuneList() {
   } catch (error) {
     console.error(error);
   }
-
   writeTextToFile(SEARCH_LIST, 'fortune-2023.txt');
 }
 

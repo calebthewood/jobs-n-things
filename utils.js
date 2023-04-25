@@ -18,10 +18,10 @@ function extractNumber(string) {
 /** For use on the Airtable sites where default scroll behavior is blocked
  * Fires a wheel event on the paneContainer class. Discovered through trial and err
  */
-function scroll({ deltaX, deltaY }) {
+function scroll() {
   document.getElementsByClassName('paneContainer')[0]
     .dispatchEvent(new WheelEvent('wheel', {
-      deltaY: 900,
+      deltaY: 850,
       deltaX: 0,
       cancelable: true
     }));
@@ -67,7 +67,7 @@ function writeTextToFile(array, filePath) {
 }
 
 function writeArrayToFile(arr, filename) {
-  const content = `module.exports = [\n  "${arr.join('",\n  "')}"\n];`;
+  const content = `const companies = [\n  "${arr.join('",\n  "')}"\n];`;
 
   fs.writeFile(filename, content, (err) => {
     if (err) throw err;
